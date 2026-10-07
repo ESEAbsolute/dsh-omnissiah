@@ -1,0 +1,10 @@
+# Normalize line endings in the repository so a Windows checkout and a
+# Linux/macOS checkout agree. Without this, autocrlf converts LF to CRLF in
+# the working copy only, and any tooling that hashes or diffs file bytes
+# (including our own test fixtures) sees phantom changes.
+* text=auto eol=lf
+
+# Binary assets, if any are ever added.
+*.png binary
+*.jpg binary
+*.ico binary

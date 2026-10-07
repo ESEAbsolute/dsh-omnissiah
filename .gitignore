@@ -1,0 +1,22 @@
+# Dependencies (this plugin has none, but a deploy may add them)
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Logs / caches
+*.log
+npm-debug.log*
+.npm/
+.pnpm-store/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Test artifacts
+coverage/
+*.tmp
