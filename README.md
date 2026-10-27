@@ -19,35 +19,67 @@
 | **按会话开关** | `/omnissiah on` 开启，`/omnissiah off` 退出；**其它会话不受影响** |
 | **需求自动整合** | 开启后，当轮用户消息自动织入祷文的 `{{task}}` 槽位，并在末尾以「本次祷告所指的具体事务」复述 |
 | **状态可恢复** | 激活状态从会话日志里 `/omnissiah` 的命令生命周期（`command/run` / `command/done`）重建，**压缩 / 恢复 / fork 后依然有效**；不写私有事件类型 |
+| **可作为插件管理** | 声明 `dsh.bundle` 并自带组合包补丁，能由插件管理器（Web 插件页 / `dsh plugin`）安装、启停与卸载 |
 | **零破坏** | 任何异常都退化为"不注入"，绝不会让模型调用失败 |
 
 ---
 
 ## 安装
 
-把本仓库放进 DSH profile 的 `node_modules/`，然后在
-`<profile>/cordis.patch.yml` 里注册：
+本包是一个 **DSH 组合包**：`package.json` 的 `dsh.bundle.patch` 指向根目录的
+`cordis.patch.yml`，所以 DSH 的插件管理器可以直接安装、启停和卸载它，不需要
+再手工改 profile 的 `cordis.patch.yml`，也不需要往 profile 的 `node_modules/`
+里复制文件。
+
+在能调用 `dsh` 的终端里执行（`web` 换成你的 profile 名）：
+
+```sh
+# 本地开发目录（link: 依赖，源码改动后重载即可生效）
+dsh plugin --profile web add "link:<本仓库的绝对路径>"
+
+# 或从 registry 安装已发布版本
+dsh plugin --profile web add dsh-plugin-omnissiah
+```
+
+> registry 上的 `dsh-plugin-omnissiah` 需要是 **1.1.0 或更高版本**才带组合包声明；
+> v1.0.1 及更早的发布物仍会被插件管理器以 `not-a-bundle` 拒绝。
+
+也可以把同样的 spec 填进 Web 界面的**设置 → 插件**安装框。安装成功后，包会
+出现在 profile 的 `package.json` 里（`dependencies` 与 `dsh.profile.bundles`
+各一条），组合包补丁随之成为该 profile 的一层。
+
+> **安装后需要重启 DSH** 才会挂载新层（除非该部署启用了 HMR 并已热重载）。
+
+### 组合包补丁
+
+根目录的 `cordis.patch.yml` 只做一件事——插入插件本体这一行：
 
 ```yaml
 - insert:
     - id: dsh-plugin-omnissiah
-      name: './node_modules/dsh-plugin-omnissiah/lib/index.js'
+      name: dsh-plugin-omnissiah
       config:
         followUserRequest: true
         # artifact: PERFORMANCE_OPTIMIZATION.md
 ```
 
-> **两点容易踩的坑：**
->
-> 1. 用**相对路径**是有意的：冷启动时 loader 的解析基准未定，裸包名到不了
->    profile 的 `node_modules`；`parsePatchList` 会把相对路径锚定到 patch
->    文件所在目录。
-> 2. `insert` 行的 **`id` 必须等于完整包名** `dsh-plugin-omnissiah`。
->    `dshmarket` 用「包名 → rowId（去 `@`、非字母数字转 `-`、小写）」比对
->    patch 里的 `id`，来判断这一行是否已由用户接管。写成短名（如 `omnissiah`）
->    会匹配不上，于是 dshmarket 又为它挂一份 hot-mount shim，导致**重复加载**。
+- `id` 必须等于完整包名。插件管理器按这个 id 把已安装的包与运行中的行对应
+  起来；`dshmarket` 也用同一个 id 判断这一行是否已由组合包提供。写成短名
+  （如 `omnissiah`）会匹配不上，从而造成**重复加载**。
+- 你仍可以在 profile 自己的 `cordis.patch.yml` 里按 `id: dsh-plugin-omnissiah`
+  覆盖 `config`：组合包层先应用，profile patch 后应用，因此用户配置优先。
 
-改完配置**需要重启 DSH** 才会加载。
+### 从手工安装迁移（v1.0.1 → v1.1.0）
+
+v1.0.1 及更早的 README 要求把仓库复制进 profile 的 `node_modules/`，再在
+`cordis.patch.yml` 里手写 `insert` 行。v1.1.0 起改为组合包，迁移步骤：
+
+1. 删掉 profile `cordis.patch.yml` 里的 `dsh-plugin-omnissiah` insert 条目；
+2. 删掉 profile `node_modules/dsh-plugin-omnissiah/` 复制目录；
+3. 按上面的命令用 `dsh plugin` 安装本包；
+4. 重启 DSH。
+
+清理步骤 1、2 缺一不可：残留的 insert 行会和组合包层同时挂载插件，导致重复注册。
 
 ---
 
@@ -164,14 +196,16 @@ node scripts/repair-session-log.mjs "$env:USERPROFILE\.dsh\sessions\--D-Desktop-
 lib/personas.js                祷文库（逐字转录自视频）+ 三个人格
 lib/index.js                   插件主体：条件式 prompt section + /omnissiah 命令 +
                                从 command/run、command/done 折叠的投影状态
+cordis.patch.yml               组合包补丁：插入插件行，插件管理器据此安装/启停
 scripts/repair-session-log.mjs 离线修复 v1.0.0 写坏的会话日志
 test/smoke.mjs                 离线行为断言（无外部依赖，CI 可跑）
+test/bundle-contract.mjs       组合包声明、补丁行与发布文件集的离线契约
 test/repair-session-log.test.mjs  修复脚本的离线测试
 test/integration.mjs           对 DSH 真实 system-prompt 装配管线的集成验证（需 DSH_CORE_DIR）
 test/projection-contract.mjs   对 DSH 真实 session-projection 注册表/检查点的契约验证（需 DSH_CORE_DIR）
 ```
 
-三个关键设计决策：
+四个关键设计决策：
 
 1. **section 常驻注册、内容条件为空。** `ctx.systemPrompt.section()` 注册一次，
    其 `text` 解析器在未激活时返回 `""`。DSH 的装配管线会过滤掉空段落，
@@ -191,6 +225,11 @@ test/projection-contract.mjs   对 DSH 真实 session-projection 注册表/检�
 3. **`interpolate: false`。** 祷文里的 `{{task}}` / `{{artifact}}` 是我们自己的槽位，
    在 JS 里就填好了。若交给 DSH 的提示词渲染器，它会把未知的 `{{…}}` 引用当成错误
    并**让整个模型步骤失败**。
+
+4. **组合包分发。** `package.json` 的 `dsh.bundle.patch` 指向根目录
+   `cordis.patch.yml`，这是 DSH 插件管理器识别"可管理插件"的唯一声明。
+   补丁只插入一行，`id` 与包名一致；组合包层在 profile 自己的
+   `cordis.patch.yml` 之前应用，因此用户仍可按 `id` 覆盖 `config`。
 
 ### 依赖与可选性
 
@@ -215,8 +254,14 @@ test/projection-contract.mjs   对 DSH 真实 session-projection 注册表/检�
 # 行为契约（无外部依赖，任何时候都能跑）
 node test/smoke.mjs
 
+# 组合包契约（无外部依赖）
+node test/bundle-contract.mjs
+
 # 日志修复脚本（无外部依赖）
 node test/repair-session-log.test.mjs
+
+# 一次跑完 smoke 与组合包两项契约测试
+npm test
 ```
 
 集成测试会对着 DSH 真实的 `@deepseek-ai/dsh-system-prompt` 装配管线、
@@ -243,9 +288,16 @@ node test/repair-session-log.test.mjs
 
 ## 卸载 / 回滚
 
-1. 从 `cordis.patch.yml` 删掉 `- insert:` 里的 `omnissiah` 条目；
-2. 从 profile 的 `package.json` 里删掉该依赖；
-3. 重启 DSH。
+```sh
+dsh plugin --profile web remove dsh-plugin-omnissiah
+```
+
+插件管理器会先取消选择、卸载运行中的行，再从 profile 的 `package.json` 与
+`dsh.profile.bundles` 里移除依赖；没有 HMR 的部署可能需要重启 DSH 才完全生效。
+
+旧版手工安装的残留要单独清理，删除 profile `cordis.patch.yml` 里的
+`dsh-plugin-omnissiah` insert 条目，以及 profile `node_modules/` 下的
+`dsh-plugin-omnissiah/` 复制目录——否则残留行会与安装包重复挂载。
 
 > 说明：v1.0.0 产生的 `omnissiah/state` 会话事件会留在会话日志里。升级到
 > v1.0.1 后请先用 `scripts/repair-session-log.mjs` 给这些事件补上
