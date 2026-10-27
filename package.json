@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-omnissiah",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "万机之神 (Omnissiah) persona for DeepSeek Harness: keeps the Warhammer 40K Mechanicus coding liturgy from the viral \"ds：好的，我现在是万机之神了（\" technique resident in the system prompt and weaves each incoming user request into its slots.",
   "type": "module",
   "main": "lib/index.js",
@@ -12,10 +12,15 @@
   "files": [
     "lib/index.js",
     "lib/personas.js",
+    "scripts/repair-session-log.mjs",
     "README.md"
   ],
   "scripts": {
-    "test": "node test/smoke.mjs"
+    "test": "node test/smoke.mjs",
+    "test:repair": "node test/repair-session-log.test.mjs",
+    "test:integration": "node test/integration.mjs",
+    "test:projection": "node test/projection-contract.mjs",
+    "repair-session-log": "node scripts/repair-session-log.mjs"
   },
   "keywords": [
     "dsh",
